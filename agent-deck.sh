@@ -149,11 +149,11 @@ save_session() {
     cat > "$SESSIONS_DIR/$name.conf" << EOF
 # Agent Deck Session: $name
 # Created: $(date -u +%Y-%m-%dT%H:%M:%SZ)
-PROJECT_DIR=$dir
-DOMAIN=$domain
-NEEDS=$needs
-COMMANDS=$commands
-TEMPLATES=$templates
+PROJECT_DIR="$dir"
+DOMAIN="$domain"
+NEEDS="$needs"
+COMMANDS="$commands"
+TEMPLATES="$templates"
 TEAM_NAME=$team_name
 EOF
 }
@@ -487,8 +487,8 @@ cmd_list() {
 
         local name project_dir domain team_name
         name=$(basename "$file" .conf)
-        project_dir=$(grep '^PROJECT_DIR=' "$file" | cut -d= -f2)
-        domain=$(grep '^DOMAIN=' "$file" | cut -d= -f2)
+        project_dir=$(grep '^PROJECT_DIR=' "$file" | cut -d= -f2 | tr -d '"')
+        domain=$(grep '^DOMAIN=' "$file" | cut -d= -f2 | tr -d '"')
         team_name=$(grep '^TEAM_NAME=' "$file" | cut -d= -f2)
         team_name="${team_name:-${name#${SESSION_PREFIX}-}}"
 
@@ -542,7 +542,7 @@ cmd_home() {
     cmd_list
 
     echo -e "${DIM}  ─────────────────────────────────────────${RESET}"
-    echo -e "  ${CYAN}s${RESET}etup <dir>   ${CYAN}o${RESET}pen <name>   s${CYAN}p${RESET}awn <name>   ${CYAN}k${RESET}ill <name>   ${CYAN}q${RESET}uit"
+    echo -e "  ${CYAN}d${RESET}ashboard   ${CYAN}s${RESET}etup <dir>   ${CYAN}o${RESET}pen <name>   s${CYAN}p${RESET}awn <name>   ${CYAN}k${RESET}ill <name>   ${CYAN}q${RESET}uit"
     echo ""
 
     while true; do
@@ -551,6 +551,10 @@ cmd_home() {
 
         case "$input" in
             q|quit|exit) break ;;
+            d|dash|dashboard)
+                cmd_dashboard
+                break
+                ;;
             s\ *|setup\ *)
                 local dir="${input#* }"
                 cmd_setup "$dir"
@@ -581,10 +585,71 @@ cmd_home() {
                 cmd_list
                 ;;
             *)
-                echo -e "  ${DIM}setup <dir>  open <name>  spawn <name>  kill <name>  list  quit${RESET}"
+                echo -e "  ${DIM}dashboard  setup <dir>  open <name>  spawn <name>  kill <name>  list  quit${RESET}"
                 ;;
         esac
     done
+}
+
+# ── dashboard: master tmux session with all projects as windows ──────
+cmd_dashboard() {
+    require_tmux
+    local master_session="agent-deck-dashboard"
+
+    # If dashboard already exists, attach to it
+    if tmux_session_exists "$master_session"; then
+        echo -e "${GREEN}Attaching to dashboard...${RESET}"
+        tmux attach -t "$master_session"
+        return
+    fi
+
+    # Create master dashboard session
+    echo -e "${GREEN}Launching Agent Deck Dashboard...${RESET}"
+    echo ""
+
+    # Find all session configs
+    local sessions=()
+    for file in "$SESSIONS_DIR"/*.conf; do
+        [ -f "$file" ] || continue
+        sessions+=("$(basename "$file" .conf)")
+    done
+
+    if [ ${#sessions[@]} -eq 0 ]; then
+        err "No sessions configured. Run: agent-deck setup <project-dir>"
+        return 1
+    fi
+
+    # Create dashboard session with first project
+    local first_session="${sessions[0]}"
+    source "$SESSIONS_DIR/$first_session.conf"
+    local first_project="$PROJECT_DIR"
+
+    echo -e "  ${CYAN}${first_session}${RESET} ${DIM}${first_project}${RESET}"
+    tmux new-session -d -s "$master_session" -n "$first_session" -c "$first_project"
+    tmux send-keys -t "$master_session:$first_session" 'claude' Enter
+
+    # Add windows for remaining projects
+    for ((i=1; i<${#sessions[@]}; i++)); do
+        local sess="${sessions[$i]}"
+        source "$SESSIONS_DIR/$sess.conf"
+        echo -e "  ${CYAN}${sess}${RESET} ${DIM}${PROJECT_DIR}${RESET}"
+        tmux new-window -t "$master_session" -n "$sess" -c "$PROJECT_DIR"
+        tmux send-keys -t "$master_session:$sess" 'claude' Enter
+    done
+
+    # Add a status window
+    tmux new-window -t "$master_session" -n "dashboard"
+    tmux send-keys -t "$master_session:dashboard" 'clear && echo "Agent Deck Dashboard" && echo "" && agent-deck list && echo "" && echo "Switch windows: Ctrl+B then number (0-9)" && echo "Create new window: Ctrl+B then C" && echo "Kill window: Ctrl+B then X" && echo "Detach: Ctrl+B then D"' Enter
+
+    # Select first project window
+    tmux select-window -t "$master_session:$first_session"
+
+    echo ""
+    echo -e "${BOLD}Dashboard ready!${RESET}"
+    echo -e "${DIM}Switch windows: Ctrl+B then 0-9${RESET}"
+    echo ""
+
+    tmux attach -t "$master_session"
 }
 
 # ── help ──────────────────────────────────────────────────────────────
@@ -596,6 +661,7 @@ usage() {
     echo ""
     echo "Usage:"
     echo "  agent-deck                        Home base (interactive)"
+    echo "  agent-deck dashboard              Launch dashboard with all sessions"
     echo "  agent-deck setup [dir]            Create + configure a session"
     echo "  agent-deck open <session>         Open a session"
     echo "  agent-deck spawn <session>        Add another agent window"
@@ -628,6 +694,9 @@ main() {
         help|-h|--help) usage ;;
 
         # Requires tmux
+        dashboard|d|dash)
+            cmd_dashboard
+            ;;
         open|o)
             [ -z "${2:-}" ] && err "Usage: agent-deck open <session>" && exit 1
             cmd_open "$2"
