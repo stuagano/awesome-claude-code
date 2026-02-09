@@ -68,6 +68,34 @@ main() {
         exit 1
     fi
 
+    # ── Initialize global config ──
+
+    local global_config="$DECK_HOME/config.conf"
+    if [ ! -f "$global_config" ]; then
+        cat > "$global_config" << 'CONFIG_EOF'
+# Agent Deck — Global Configuration
+# Edit directly or use: deck config set <key> <value>
+
+# Enable Agent Teams for all sessions (1 = enabled)
+CONF_AGENT_TEAMS=1
+
+# Prefix for tmux session names
+CONF_SESSION_PREFIX=deck
+
+# Auto-update resource cache (true/false)
+CONF_AUTO_UPDATE=true
+
+# Default domain for new sessions
+CONF_DEFAULT_DOMAIN=general
+
+# Editor for config files
+CONF_EDITOR=vi
+CONFIG_EOF
+        ok "Global config: $global_config"
+    else
+        ok "Global config: already exists"
+    fi
+
     # ── Enable Agent Teams ──
 
     local claude_settings_dir="$HOME/.claude"
@@ -107,10 +135,13 @@ SETTINGS_EOF
     local bin_dir="$HOME/.local/bin"
     mkdir -p "$bin_dir"
 
-    # Create `deck` wrapper that detaches if inside tmux, launches dashboard otherwise
+    # Create `deck` wrapper
+    # - No args inside tmux → detach (go back to dashboard)
+    # - No args outside tmux → launch dashboard
+    # - With args → always pass through to agent-deck
     cat > "$bin_dir/deck" << 'DECK_EOF'
 #!/usr/bin/env bash
-if [ -n "${TMUX:-}" ]; then
+if [ $# -eq 0 ] && [ -n "${TMUX:-}" ]; then
     tmux detach
 else
     exec bash ~/.agent-deck/agent-deck.sh "$@"
