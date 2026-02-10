@@ -124,10 +124,14 @@ gh pr create --fill
 
 ### 5. MLflow Experiment Tracking
 
+> **Note**: Databricks experiment names use the format `/Users/<workspace-username>/<experiment-name>`,
+> where `<workspace-username>` is your Databricks workspace email (e.g., `user@company.com`).
+> This is a Databricks workspace convention, not a local filesystem path.
+
 ```python
 import mlflow
 
-mlflow.set_experiment("/Users/you@company.com/project-name")
+mlflow.set_experiment("/Users/<your-databricks-username>/project-name")
 
 with mlflow.start_run(run_name="descriptive-name"):
     # Log parameters at start

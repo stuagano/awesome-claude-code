@@ -44,6 +44,10 @@ init_deck() {
 
 # ── Resource cache ────────────────────────────────────────────────────
 ensure_cache() {
+    require_git
+
+    local lockfile="$ACC_CACHE/.fetch_lock"
+
     if [ -d "$ACC_CACHE/resources" ]; then
         local age=0
         if [ -f "$ACC_CACHE/.fetch_time" ]; then
@@ -52,20 +56,58 @@ ensure_cache() {
             age=$(( $(date +%s) - fetch_time ))
         fi
         if [ "$age" -gt 86400 ]; then
-            info "Updating resources..."
-            git -C "$ACC_CACHE" pull --quiet 2>/dev/null || true
-            date +%s > "$ACC_CACHE/.fetch_time"
+            # Acquire lock with timeout
+            local lock_acquired=false
+            for i in {1..10}; do
+                if mkdir "$lockfile" 2>/dev/null; then
+                    lock_acquired=true
+                    break
+                fi
+                sleep 1
+            done
+
+            if [ "$lock_acquired" = true ]; then
+                info "Updating resources..."
+                if git -C "$ACC_CACHE" pull --quiet 2>/dev/null; then
+                    date +%s > "$ACC_CACHE/.fetch_time"
+                fi
+                rmdir "$lockfile"
+            fi
         fi
         return 0
     fi
 
+    # Initial clone with locking
     info "Fetching awesome-claude-code resources (one-time)..."
-    if ! git clone --depth 1 "$ACC_REPO_URL" "$ACC_CACHE" 2>/dev/null; then
-        err "Failed to clone. Check network."
+
+    local lock_acquired=false
+    for i in {1..10}; do
+        if mkdir "$lockfile" 2>/dev/null; then
+            lock_acquired=true
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$lock_acquired" = true ]; then
+        if ! git clone --depth 1 "$ACC_REPO_URL" "$ACC_CACHE" 2>/dev/null; then
+            rmdir "$lockfile"
+            err "Failed to clone. Check network."
+            return 1
+        fi
+        if [ ! -d "$ACC_CACHE/resources" ]; then
+            rmdir "$lockfile"
+            err "Clone incomplete - resources missing"
+            rm -rf "$ACC_CACHE"
+            return 1
+        fi
+        date +%s > "$ACC_CACHE/.fetch_time"
+        ok "Resources cached."
+        rmdir "$lockfile"
+    else
+        err "Failed to acquire lock for cache initialization"
         return 1
     fi
-    date +%s > "$ACC_CACHE/.fetch_time"
-    ok "Resources cached."
 }
 
 # ── Resource mappings ─────────────────────────────────────────────────
@@ -337,7 +379,10 @@ cmd_setup() {
     echo -ne "  Set up this session? ${DIM}[Y/n]${RESET} "
     read -r confirm
     confirm="${confirm:-y}"
-    [ "$confirm" = "n" ] || [ "$confirm" = "N" ] && return 0
+    if [ "$confirm" = "n" ] || [ "$confirm" = "N" ]; then
+        info "Setup cancelled."
+        return 0
+    fi
 
     echo ""
     info "Installing resources..."
@@ -373,6 +418,7 @@ cmd_setup() {
 # ── open: attach to or create a tmux session ──────────────────────────
 cmd_open() {
     require_tmux
+    require_claude
     local name="$1"
 
     # Add prefix if needed
@@ -413,6 +459,7 @@ cmd_open() {
 # ── spawn: add another agent window to a running session ──────────────
 cmd_spawn() {
     require_tmux
+    require_claude
     local name="$1"
     [[ "$name" == ${SESSION_PREFIX}-* ]] || name="${SESSION_PREFIX}-${name}"
 
@@ -456,7 +503,7 @@ get_team_task_summary() {
         total=$((total + 1))
         # Parse status from JSON (simple grep, no jq dependency)
         local status
-        status=$(grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' "$task_file" 2>/dev/null | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+        status=$(grep -o '"status"[[:space:]]*:[[:space:]]*"[^"]*"' "$task_file" 2>/dev/null | head -1 | grep -o '"[^"]*"$' | tr -d '"' || true)
         case "$status" in
             completed)   completed=$((completed + 1)) ;;
             in_progress) in_progress=$((in_progress + 1)) ;;
@@ -489,7 +536,7 @@ cmd_list() {
         name=$(basename "$file" .conf)
         project_dir=$(grep '^PROJECT_DIR=' "$file" | cut -d= -f2 | tr -d '"')
         domain=$(grep '^DOMAIN=' "$file" | cut -d= -f2 | tr -d '"')
-        team_name=$(grep '^TEAM_NAME=' "$file" | cut -d= -f2)
+        team_name=$(grep '^TEAM_NAME=' "$file" | cut -d= -f2 || echo "")
         team_name="${team_name:-${name#${SESSION_PREFIX}-}}"
 
         local status_icon windows_info
@@ -497,7 +544,7 @@ cmd_list() {
             local wc
             wc=$(tmux_window_count "$name")
             status_icon="${GREEN}●${RESET}"
-            windows_info=" ${DIM}(${wc} agent$([ "$wc" != "1" ] && echo "s"))${RESET}"
+            windows_info=" ${DIM}(${wc} agent$([ "$wc" != "1" ] && echo "s" || true))${RESET}"
         else
             status_icon="${DIM}○${RESET}"
             windows_info=""
@@ -505,9 +552,9 @@ cmd_list() {
 
         # Get task progress from Agent Teams
         local task_summary
-        task_summary=$(get_team_task_summary "$team_name")
+        task_summary=$(get_team_task_summary "$team_name" || true)
         local task_info=""
-        [ -n "$task_summary" ] && task_info="  ${task_summary}"
+        [ -n "$task_summary" ] && task_info="  ${task_summary}" || true
 
         echo -e "  $status_icon ${BOLD}$name${RESET}$windows_info  ${DIM}$domain${RESET}${task_info}"
         echo -e "    ${DIM}$project_dir${RESET}"
@@ -594,6 +641,7 @@ cmd_home() {
 # ── dashboard: master tmux session with all projects as windows ──────
 cmd_dashboard() {
     require_tmux
+    require_claude
     local master_session="agent-deck-dashboard"
 
     # If dashboard already exists, attach to it
@@ -677,6 +725,22 @@ require_tmux() {
     if ! command -v tmux &>/dev/null; then
         err "tmux is required for session management."
         echo -e "Install: ${CYAN}sudo apt install tmux${RESET} or ${CYAN}brew install tmux${RESET}"
+        exit 1
+    fi
+}
+
+require_git() {
+    if ! command -v git &>/dev/null; then
+        err "git is required to fetch resources."
+        echo -e "Install: ${CYAN}sudo apt install git${RESET} or ${CYAN}brew install git${RESET}"
+        exit 1
+    fi
+}
+
+require_claude() {
+    if ! command -v claude &>/dev/null; then
+        err "Claude Code is required to run sessions."
+        echo -e "Install: ${CYAN}https://claude.ai/download${RESET}"
         exit 1
     fi
 }

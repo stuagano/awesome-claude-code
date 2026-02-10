@@ -58,7 +58,7 @@ Session configs are stored as plain `.conf` files:
 ```ini
 # Agent Deck Session: deck-my-model
 # Created: 2026-02-08T12:00:00Z
-PROJECT_DIR=/home/user/projects/my-model
+PROJECT_DIR=~/projects/my-model
 DOMAIN=ml
 NEEDS=git quality context
 COMMANDS=commit context-prime create-pr feature-table mlflow-log-model optimize pr-review testing_plan_integration uc-register-model

@@ -243,7 +243,7 @@ The team lead can use **both**: subagents for quick research/analysis, Agent Tea
 Stored in `~/.agent-deck/sessions/<name>.conf`:
 
 ```ini
-PROJECT_DIR=/home/user/mirion
+PROJECT_DIR=~/projects/mirion
 DOMAIN=ml
 NEEDS=git quality context
 COMMANDS=commit context-prime mlflow-log-model optimize pr-review

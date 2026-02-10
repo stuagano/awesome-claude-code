@@ -20,6 +20,11 @@ catalog.schema.asset
 ## Model Registry with Unity Catalog
 
 ### Setting Up MLflow for Unity Catalog
+
+> **Note**: Databricks experiment names use the format `/Users/<workspace-username>/<experiment-name>`,
+> where `<workspace-username>` is your Databricks workspace email (e.g., `user@company.com`).
+> This is a Databricks workspace convention, not a local filesystem path.
+
 ```python
 import mlflow
 
@@ -27,7 +32,7 @@ import mlflow
 mlflow.set_registry_uri("databricks-uc")
 
 # Set experiment in Unity Catalog
-mlflow.set_experiment("/Users/you@company.com/my-experiment")
+mlflow.set_experiment("/Users/<your-databricks-username>/my-experiment")
 ```
 
 ### Registering Models

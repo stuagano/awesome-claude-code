@@ -203,11 +203,16 @@ Answer:"""
 ## Logging and Deploying Agents
 
 ### Log Agent with MLflow
+
+> **Note**: Databricks experiment names use the format `/Users/<workspace-username>/<experiment-name>`,
+> where `<workspace-username>` is your Databricks workspace email (e.g., `user@company.com`).
+> This is a Databricks workspace convention, not a local filesystem path.
+
 ```python
 import mlflow
 
 mlflow.set_registry_uri("databricks-uc")
-mlflow.set_experiment("/Users/you@company.com/my-agent")
+mlflow.set_experiment("/Users/<your-databricks-username>/my-agent")
 
 with mlflow.start_run():
     # Log agent using models from code

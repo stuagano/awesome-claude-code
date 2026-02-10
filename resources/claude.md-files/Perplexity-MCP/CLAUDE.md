@@ -48,13 +48,21 @@ Then configure in Claude Desktop:
 
 ## NVM Users
 If using NVM, you must use absolute paths to both node and the script:
+
+**Path Configuration:**
+Replace these placeholders with your actual paths:
+- `<NVM_NODE_PATH>`: Run `which node` to find your NVM node path
+- `<PATH_TO_PERPLEXITY_MCP>`: Absolute path where you cloned perplexity-mcp
+
+Example: `/Users/username/.nvm/versions/node/v16.20.0/bin/node`
+
 ```json
 {
   "mcpServers": {
     "perplexity": {
-      "command": "/Users/username/.nvm/versions/node/v16.x.x/bin/node",
+      "command": "<NVM_NODE_PATH>",
       "args": [
-        "/Users/username/path/to/perplexity-mcp/server.js"
+        "<PATH_TO_PERPLEXITY_MCP>/server.js"
       ],
       "env": {
         "PERPLEXITY_API_KEY": "your_perplexity_api_key"

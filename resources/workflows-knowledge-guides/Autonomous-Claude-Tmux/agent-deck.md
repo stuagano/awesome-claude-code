@@ -11,15 +11,15 @@ $ agent-deck
   ─────────────────────────────────────────
 
   1)  ● running  my-api
-      /home/user/projects/my-api
+      ~/projects/my-api
       CLAUDE.md .claude/
 
   2)  ○ idle     data-pipeline
-      /home/user/projects/data-pipeline
+      ~/projects/data-pipeline
       CLAUDE.md
 
   3)  ● running  frontend-app
-      /home/user/projects/frontend-app
+      ~/projects/frontend-app
       .claude/
 
   ─────────────────────────────────────────
@@ -124,11 +124,11 @@ agent-deck status
   ─────────────────────────────────────────
 
   ● agent-my-api          (1 windows, started 3h ago)
-    /home/user/projects/my-api
+    ~/projects/my-api
   ● agent-data-pipeline   (1 windows, started 45m ago)
-    /home/user/projects/data-pipeline
+    ~/projects/data-pipeline
   ● agent-frontend-app    (1 windows, started 6h ago)
-    /home/user/projects/frontend-app
+    ~/projects/frontend-app
 ```
 
 ### The daily cycle

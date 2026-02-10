@@ -119,6 +119,9 @@ resources:
             entry_point: train_model
             parameters:
               - --catalog=${var.catalog}
+              # Databricks experiment paths: /Users/<workspace-username>/<experiment-name>
+              # where <workspace-username> is the workspace email (e.g., user@company.com)
+              # The variable ${workspace.current_user.userName} dynamically resolves to the current user
               - --experiment=/Users/${workspace.current_user.userName}/fraud-detection
 
         - task_key: validate_model

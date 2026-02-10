@@ -8,7 +8,7 @@
 - Run tests: `./gradlew test`
 - ktlint check: `./gradlew ktlintCheck`
 - ktlint format: `./gradlew ktlintFormat`
-- Build ios: `cd /Users/kevingalligan/devel/DroidconKotlin/ios/Droidcon && xcodebuild -scheme Droidcon -sdk iphonesimulator`
+- Build ios: `cd <PROJECT_ROOT>/ios/Droidcon && xcodebuild -scheme Droidcon -sdk iphonesimulator`
 
 ## Modules
 

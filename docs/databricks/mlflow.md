@@ -170,7 +170,12 @@ predictions = model.predict(input_data)
 - Test locally with `databricks apps run-local`
 
 ### Experiment Tracking
-- Use descriptive experiment names: `/Users/you@company.com/project-name`
+
+> **Note**: Databricks experiment names use the format `/Users/<workspace-username>/<experiment-name>`,
+> where `<workspace-username>` is your Databricks workspace email (e.g., `user@company.com`).
+> This is a Databricks workspace convention, not a local filesystem path.
+
+- Use descriptive experiment names: `/Users/<your-databricks-username>/project-name`
 - Log hyperparameters at the start of runs
 - Log metrics iteratively for training curves
 - Use `mlflow.log_artifact()` for plots and reports
