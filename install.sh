@@ -33,24 +33,57 @@ ok()    { echo -e "${GREEN}${BOLD} +${RESET} $*"; }
 warn()  { echo -e "${YELLOW}${BOLD} !${RESET} $*"; }
 err()   { echo -e "${RED}${BOLD} x${RESET} $*" >&2; }
 
+check_dependencies() {
+    local missing=""
+
+    if ! command -v git &>/dev/null; then
+        missing="${missing}git "
+    fi
+
+    if [ -n "$missing" ]; then
+        err "Missing required dependencies: $missing"
+        echo ""
+        echo "Install instructions:"
+        echo -e "  ${CYAN}macOS:${RESET}   brew install $missing"
+        echo -e "  ${CYAN}Ubuntu:${RESET}  sudo apt install $missing"
+        echo -e "  ${CYAN}Fedora:${RESET}  sudo dnf install $missing"
+        echo ""
+        exit 1
+    fi
+}
+
 main() {
+    local cache_dir="$DECK_HOME/cache/awesome-claude-code"
+
+    # Cleanup on failure
+    trap 'if [ $? -ne 0 ]; then
+        [ -d "$cache_dir" ] && [ ! -d "$cache_dir/resources" ] && rm -rf "$cache_dir"
+    fi' EXIT
+
     echo ""
     echo -e "${BOLD}Awesome Claude Code — Agent Deck Installer${RESET}"
     echo ""
 
-    # ── Clone or update the resource cache ──
+    check_dependencies
 
-    local cache_dir="$DECK_HOME/cache/awesome-claude-code"
+    # ── Clone or update the resource cache ──
     mkdir -p "$DECK_HOME/sessions" "$DECK_HOME/cache"
 
     if [ -d "$cache_dir/resources" ]; then
         info "Updating resource cache..."
-        git -C "$cache_dir" pull --quiet 2>/dev/null || true
+        if ! git -C "$cache_dir" pull --quiet 2>/dev/null; then
+            warn "Failed to update cache. Continuing with existing version..."
+        fi
     else
         info "Fetching awesome-claude-code resources..."
         if ! git clone --depth 1 --branch "$REPO_BRANCH" --single-branch \
              "$REPO_URL" "$cache_dir" 2>/dev/null; then
             err "Failed to clone. Check your network connection."
+            exit 1
+        fi
+        if [ ! -d "$cache_dir/resources" ]; then
+            err "Clone incomplete - resources directory missing."
+            rm -rf "$cache_dir"
             exit 1
         fi
     fi
