@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# agent-deck - Home base for Claude Code agent teams
+# agent-deck - Home base for Claude Code projects
 #
-# A session is scoped to a project folder. Each session launches a Claude
-# Code team lead (orchestrator) that can spawn Agent Teams teammates for
-# parallel work. The deck is where you manage all your sessions.
+# Manage multiple projects from one dashboard. Each project gets its own
+# config, slash commands, and CLAUDE.md templates installed by `deck setup`.
+#
+# Default workflow: open one Claude session at a time, use subagents
+# (Task tool) for parallel work. No extra processes, no wasted tokens.
+#
+# Power users: add --tmux to `open` for persistent tmux sessions that
+# survive disconnects and support `spawn` for additional agent windows.
 #
 # Usage:
-#   agent-deck                        Home base (interactive)
-#   agent-deck setup [dir]            Create + configure a session for a project
-#   agent-deck open <session>         Open a session (attach or create)
-#   agent-deck spawn <session>        Add another agent window to a session
-#   agent-deck list                   List all sessions
-#   agent-deck kill <session>         Kill a session
-#   agent-deck help                   Show help
+#   deck                              Dashboard (home base)
+#   deck setup [dir]                  Configure a project
+#   deck open <name>                  Launch Claude in a project
+#   deck open <name> --tmux           Launch in tmux (persistent)
+#   deck list                         List all projects
+#   deck config                       Global configuration
+#   deck help                         Show help
 
 set -euo pipefail
 
@@ -510,44 +515,58 @@ cmd_setup() {
 
     # ── Launch? ──
     echo ""
-    if command -v tmux &>/dev/null; then
-        echo -ne "  Launch session now? ${DIM}[Y/n]${RESET} "
-        read -r launch_confirm
-        launch_confirm="${launch_confirm:-y}"
-        if [ "$launch_confirm" != "n" ] && [ "$launch_confirm" != "N" ]; then
-            cmd_open "$name"
-            return
-        fi
+    echo -ne "  Launch Claude now? ${DIM}[Y/n]${RESET} "
+    read -r launch_confirm
+    launch_confirm="${launch_confirm:-y}"
+    if [ "$launch_confirm" != "n" ] && [ "$launch_confirm" != "N" ]; then
+        cmd_open "$name"
+        return
     fi
 
+    local short_name="${name#${SESSION_PREFIX}-}"
     echo ""
     echo -e "${BOLD}${GREEN}  Session ready.${RESET}"
     echo ""
-    echo "  Open it:"
-    echo -e "    ${CYAN}agent-deck open $name${RESET}"
-    echo ""
-    echo "  Add more agents:"
-    echo -e "    ${CYAN}agent-deck spawn $name${RESET}"
+    echo -e "  Open it:          ${CYAN}deck open $short_name${RESET}"
+    echo -e "  Open with tmux:   ${CYAN}deck open $short_name --tmux${RESET}"
     echo ""
 }
 
-# ── open: attach to or create a tmux session ──────────────────────────
+# ── open: launch claude in a project ─────────────────────────────────
+#
+# Default: cd to project dir and exec claude directly (lightweight).
+#   Use subagents (Task tool) inside the session for parallel work.
+#
+# --tmux: launch in a tmux session instead (persistent, supports spawn).
+#
 cmd_open() {
-    require_tmux
-    require_claude
-    local name="$1"
+    local use_tmux=false
+    local name=""
+
+    # Parse flags
+    for arg in "$@"; do
+        case "$arg" in
+            --tmux) use_tmux=true ;;
+            *)      name="$arg" ;;
+        esac
+    done
+
+    if [ -z "$name" ]; then
+        err "Usage: deck open <session> [--tmux]"
+        return 1
+    fi
 
     # Add prefix if needed
     [[ "$name" == ${SESSION_PREFIX}-* ]] || name="${SESSION_PREFIX}-${name}"
 
-    # If tmux session exists, attach
-    if tmux_session_exists "$name"; then
-        echo -e "${GREEN}Attaching to: ${name}${RESET}"
+    # If a tmux session already exists for this project, attach to it
+    if command -v tmux &>/dev/null && tmux_session_exists "$name"; then
+        echo -e "${GREEN}Attaching to running session: ${name}${RESET}"
         tmux attach -t "$name"
         return
     fi
 
-    # Try to load session config for the project dir
+    # Load session config
     local project_dir="" team_name=""
     if [ -f "$SESSIONS_DIR/$name.conf" ]; then
         # shellcheck disable=SC1090
@@ -557,24 +576,33 @@ cmd_open() {
     fi
 
     if [ -z "$project_dir" ] || [ ! -d "$project_dir" ]; then
-        err "No session config for '$name'. Run: agent-deck setup <project-dir>"
+        err "No session config for '$name'. Run: deck setup <project-dir>"
         return 1
     fi
 
-    echo -e "${GREEN}Launching: ${name}${RESET}"
-    echo -e "${DIM}Project: ${project_dir}${RESET}"
+    if [ "$use_tmux" = true ]; then
+        # ── tmux mode: persistent session ──
+        require_tmux
+        echo -e "${GREEN}Launching (tmux): ${name}${RESET}"
+        echo -e "${DIM}Project: ${project_dir}${RESET}"
 
-    # Launch with Agent Teams if enabled in global config
-    tmux new-session -d -s "$name" -c "$project_dir"
-    if [ "${CONF_AGENT_TEAMS:-1}" = "1" ]; then
-        echo -e "${DIM}Agent Teams: enabled (team: ${team_name})${RESET}"
-        tmux set-environment -t "$name" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS 1
-        tmux send-keys -t "$name" "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude" Enter
+        tmux new-session -d -s "$name" -c "$project_dir"
+        if [ "${CONF_AGENT_TEAMS:-1}" = "1" ]; then
+            echo -e "${DIM}Agent Teams: enabled (team: ${team_name})${RESET}"
+            tmux set-environment -t "$name" CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS 1
+            tmux send-keys -t "$name" "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 claude" Enter
+        else
+            tmux send-keys -t "$name" "claude" Enter
+        fi
+        tmux attach -t "$name"
     else
-        echo -e "${DIM}Agent Teams: disabled${RESET}"
-        tmux send-keys -t "$name" "claude" Enter
+        # ── direct mode: launch claude in this terminal ──
+        echo -e "${GREEN}Opening: ${name}${RESET}"
+        echo -e "${DIM}${project_dir}${RESET}"
+        echo -e "${DIM}Use subagents inside Claude for parallel work${RESET}"
+        echo ""
+        cd "$project_dir" && exec claude
     fi
-    tmux attach -t "$name"
 }
 
 # ── spawn: add another agent window to a running session ──────────────
@@ -721,30 +749,20 @@ cmd_home() {
     echo ""
 
     # ── Status bar ──
-    local tmux_status agent_teams_status
-    if [ "$has_tmux" = true ]; then
-        tmux_status="${GREEN}ready${RESET}"
-    else
-        tmux_status="${YELLOW}not installed${RESET}"
-    fi
-    if [ -f "$HOME/.claude/settings.json" ] && grep -q 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$HOME/.claude/settings.json" 2>/dev/null; then
-        agent_teams_status="${GREEN}enabled${RESET}"
-    else
-        agent_teams_status="${YELLOW}not configured${RESET}"
-    fi
-    echo -e "  tmux: $tmux_status    Agent Teams: $agent_teams_status    sessions: ${BOLD}$session_count${RESET}"
+    echo -e "  projects: ${BOLD}$session_count${RESET}    config: ${DIM}$GLOBAL_CONFIG${RESET}"
     echo ""
 
     # ── Sessions ──
     if [ "$session_count" -eq 0 ]; then
         echo -e "${DIM}  ─────────────────────────────────────────${RESET}"
         echo ""
-        echo -e "  ${BOLD}No sessions yet.${RESET} Set up your first project:"
+        echo -e "  ${BOLD}No projects yet.${RESET} Set up your first one:"
         echo ""
-        echo -e "    ${CYAN}deck setup ~/myproject${RESET}"
+        echo -e "    ${CYAN}setup ~/myproject${RESET}"
         echo ""
-        echo -e "  This will detect your stack, pick relevant resources,"
-        echo -e "  and configure a persistent Claude Code session."
+        echo -e "  This detects your stack, installs relevant slash"
+        echo -e "  commands + CLAUDE.md templates, and registers the"
+        echo -e "  project so you can switch between them from here."
         echo ""
         echo -e "${DIM}  ─────────────────────────────────────────${RESET}"
     else
@@ -754,20 +772,18 @@ cmd_home() {
     # ── Quick reference ──
     echo -e "  ${BOLD}Commands${RESET}"
     echo ""
-    echo -e "    ${CYAN}setup${RESET} <dir>         Set up a new project session"
-    echo -e "    ${CYAN}open${RESET}  <name>        Open a session (launches Claude Code)"
-    echo -e "    ${CYAN}spawn${RESET} <name>        Add another agent to a session"
-    echo -e "    ${CYAN}kill${RESET}  <name>        Stop a session"
-    echo -e "    ${CYAN}list${RESET}                List all sessions"
-    echo -e "    ${CYAN}config${RESET}              Show global configuration"
-    echo -e "    ${CYAN}quit${RESET}                Exit"
+    echo -e "    ${CYAN}setup${RESET} <dir>                Set up a new project"
+    echo -e "    ${CYAN}open${RESET}  <name>               Launch Claude in a project"
+    echo -e "    ${CYAN}open${RESET}  <name> ${DIM}--tmux${RESET}        Launch in tmux (persistent)"
+    echo -e "    ${CYAN}list${RESET}                        List all projects"
+    echo -e "    ${CYAN}config${RESET}                      Show global configuration"
+    echo -e "    ${CYAN}quit${RESET}                        Exit"
     echo ""
-
-    if [ "$has_tmux" != true ]; then
-        echo -e "  ${YELLOW}Note:${RESET} Install tmux to open/spawn sessions."
-        echo -e "  ${DIM}  sudo apt install tmux  ${RESET}or${DIM}  brew install tmux${RESET}"
-        echo ""
+    echo -e "  ${DIM}Inside a Claude session, use subagents (Task tool) for parallel work.${RESET}"
+    if [ "$has_tmux" = true ]; then
+        echo -e "  ${DIM}tmux power-user: open --tmux, spawn, kill${RESET}"
     fi
+    echo ""
 
     # ── Interactive loop ──
     while true; do
@@ -790,20 +806,17 @@ cmd_home() {
                 cmd_list
                 ;;
             o\ *|open\ *)
-                if [ "$has_tmux" != true ]; then
-                    err "tmux is required for sessions. Install it first."
-                    continue
-                fi
                 local target="${input#* }"
-                cmd_open "$target"
-                # After detaching from tmux, redraw
+                # shellcheck disable=SC2086
+                cmd_open $target
+                # If we get here, it was --tmux mode and user detached
                 echo ""
                 echo -e "${BOLD}${BLUE}  Agent Deck${RESET}"
                 cmd_list
                 ;;
             p\ *|spawn\ *)
                 if [ "$has_tmux" != true ]; then
-                    err "tmux is required for sessions. Install it first."
+                    err "tmux required. Use: open <name> --tmux first"
                     continue
                 fi
                 local target="${input#* }"
@@ -814,7 +827,7 @@ cmd_home() {
                 ;;
             k\ *|kill\ *)
                 if [ "$has_tmux" != true ]; then
-                    err "tmux is required for sessions. Install it first."
+                    err "tmux required."
                     continue
                 fi
                 local target="${input#* }"
@@ -829,6 +842,7 @@ cmd_home() {
                 ;;
             c\ *|config\ *)
                 local args="${input#* }"
+                # shellcheck disable=SC2086
                 cmd_config $args
                 ;;
             h|help)
@@ -836,7 +850,7 @@ cmd_home() {
                 ;;
             *)
                 echo -e "  ${DIM}Unknown: $input${RESET}"
-                echo -e "  ${DIM}Commands: setup  open  spawn  kill  list  config  help  quit${RESET}"
+                echo -e "  ${DIM}setup  open  list  config  help  quit${RESET}"
                 ;;
         esac
     done
@@ -907,30 +921,35 @@ cmd_dashboard() {
 # ── help ──────────────────────────────────────────────────────────────
 usage() {
     echo ""
-    echo "agent-deck - Home base for Claude Code agent teams"
+    echo "agent-deck - Home base for Claude Code projects"
     echo ""
-    echo "Each session is scoped to a project folder. It launches Claude Code"
-    echo "as a team lead (orchestrator) that can spawn Agent Teams teammates."
+    echo "Manage multiple projects from one dashboard. Each project gets"
+    echo "slash commands and CLAUDE.md templates tailored to its stack."
     echo ""
     echo "Usage:"
-    echo "  deck                              Homepage (interactive dashboard)"
-    echo "  deck setup [dir]                  Create + configure a session"
-    echo "  deck open <session>               Open a session"
-    echo "  deck spawn <session>              Add another agent window"
-    echo "  deck list                         List all sessions"
-    echo "  deck kill <session>               Kill a session"
-    echo "  deck config [show|set|edit|init]  Manage global config"
+    echo "  deck                              Dashboard (home base)"
+    echo "  deck setup [dir]                  Configure a project"
+    echo "  deck open <name>                  Launch Claude in a project"
+    echo "  deck open <name> --tmux           Launch in tmux (persistent)"
+    echo "  deck list                         List all projects"
+    echo "  deck config [show|set|edit|init]  Global configuration"
     echo "  deck help                         This help"
     echo ""
-    echo "Inside a tmux session:"
-    echo "  deck                              Detach (go back to dashboard)"
-    echo "  deck list                         List sessions without leaving"
+    echo "Workflow:"
+    echo "  1. deck setup ~/myproject         Detect stack, install resources"
+    echo "  2. deck open myproject            Launch Claude, use subagents"
+    echo "  3. deck                           Back to dashboard"
+    echo ""
+    echo "tmux (power users):"
+    echo "  deck open <name> --tmux           Persistent session"
+    echo "  deck spawn <name>                 Add agent window to tmux session"
+    echo "  deck kill <name>                  Stop tmux session"
+    echo "  deck                              (inside tmux) detach to dashboard"
     echo ""
     echo "Paths:"
     echo "  Config:    $GLOBAL_CONFIG"
     echo "  Sessions:  $SESSIONS_DIR"
     echo "  Cache:     $ACC_CACHE"
-    echo "  Claude:    ~/.claude/settings.json"
     echo ""
 }
 
@@ -972,13 +991,11 @@ main() {
         config)         shift; cmd_config "$@" ;;
         help|-h|--help) usage ;;
 
-        # Requires tmux
-        dashboard|d|dash)
-            cmd_dashboard
-            ;;
+        # Open (direct by default, --tmux optional)
         open|o)
-            [ -z "${2:-}" ] && err "Usage: agent-deck open <session>" && exit 1
-            cmd_open "$2"
+            [ -z "${2:-}" ] && err "Usage: deck open <session> [--tmux]" && exit 1
+            shift
+            cmd_open "$@"
             ;;
         spawn|p)
             [ -z "${2:-}" ] && err "Usage: agent-deck spawn <session>" && exit 1
