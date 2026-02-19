@@ -338,12 +338,12 @@ cmd_setup() {
     echo ""
     echo -e "  ${BOLD}What do you need?${RESET} ${DIM}(multiple: 1 3 5)${RESET}"
     echo ""
-    echo "    1) Git workflow      — Commits, PRs, branches"
-    echo "    2) Code quality      — Reviews, optimization, testing"
-    echo "    3) Project context   — Help Claude understand your code"
-    echo "    4) Documentation     — Docs, changelogs, release notes"
-    echo "    5) Deployment        — CI/CD, releases"
-    echo "    6) Personal workflow — Modes, /land, safety rules, session status"
+    echo "    1) Personal workflow — Modes, /land, safety rules, session status"
+    echo "    2) Git workflow      — Commits, PRs, branches"
+    echo "    3) Code quality      — Reviews, optimization, testing"
+    echo "    4) Project context   — Help Claude understand your code"
+    echo "    5) Documentation     — Docs, changelogs, release notes"
+    echo "    6) Deployment        — CI/CD, releases"
     echo "    7) Everything"
     echo ""
     echo -n "  Choice: "
@@ -352,9 +352,9 @@ cmd_setup() {
     local needs=""
     for n in $needs_choice; do
         case "$n" in
-            1) needs="$needs git" ;; 2) needs="$needs quality" ;;
-            3) needs="$needs context" ;; 4) needs="$needs docs" ;;
-            5) needs="$needs deploy" ;; 6) needs="$needs workflow" ;;
+            1) needs="$needs workflow" ;; 2) needs="$needs git" ;;
+            3) needs="$needs quality" ;; 4) needs="$needs context" ;;
+            5) needs="$needs docs" ;; 6) needs="$needs deploy" ;;
             7) needs="git quality context docs deploy workflow" ;;
         esac
     done
