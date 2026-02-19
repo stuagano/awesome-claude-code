@@ -137,14 +137,25 @@ commands_for_needs() {
     local cmds=""
     for need in $1; do
         case "$need" in
-            git)     cmds="$cmds create-pr fix-github-issue create-worktrees update-branch-name husky" ;;
-            quality) cmds="$cmds testing_plan_integration create-hook" ;;
-            context) cmds="$cmds context-prime initref load-llms-txt" ;;
-            docs)    cmds="$cmds update-docs add-to-changelog" ;;
-            deploy)  cmds="$cmds release act" ;;
+            git)       cmds="$cmds create-pr fix-github-issue create-worktrees update-branch-name husky" ;;
+            quality)   cmds="$cmds testing_plan_integration create-hook" ;;
+            context)   cmds="$cmds context-prime initref load-llms-txt" ;;
+            docs)      cmds="$cmds update-docs add-to-changelog" ;;
+            deploy)    cmds="$cmds release act" ;;
+            workflow)  cmds="$cmds land" ;;
         esac
     done
     echo "$cmds"
+}
+
+templates_for_needs() {
+    local tpls=""
+    for need in $1; do
+        case "$need" in
+            workflow) tpls="$tpls Claude-Config-Share" ;;
+        esac
+    done
+    echo "$tpls"
 }
 
 # ── Project detection ─────────────────────────────────────────────────
@@ -332,7 +343,8 @@ cmd_setup() {
     echo "    3) Project context   — Help Claude understand your code"
     echo "    4) Documentation     — Docs, changelogs, release notes"
     echo "    5) Deployment        — CI/CD, releases"
-    echo "    6) Everything"
+    echo "    6) Personal workflow — Modes, /land, safety rules, session status"
+    echo "    7) Everything"
     echo ""
     echo -n "  Choice: "
     read -r needs_choice
@@ -342,7 +354,8 @@ cmd_setup() {
         case "$n" in
             1) needs="$needs git" ;; 2) needs="$needs quality" ;;
             3) needs="$needs context" ;; 4) needs="$needs docs" ;;
-            5) needs="$needs deploy" ;; 6) needs="git quality context docs deploy" ;;
+            5) needs="$needs deploy" ;; 6) needs="$needs workflow" ;;
+            7) needs="git quality context docs deploy workflow" ;;
         esac
     done
 
@@ -354,8 +367,12 @@ cmd_setup() {
     needs_cmds=$(commands_for_needs "$needs")
     local all_cmds
     all_cmds=$(echo "$base_cmds $domain_cmds $needs_cmds" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+    local domain_templates
+    domain_templates=$(templates_for_domain "$domain")
+    local needs_templates
+    needs_templates=$(templates_for_needs "$needs")
     local templates
-    templates=$(templates_for_domain "$domain")
+    templates=$(echo "$domain_templates $needs_templates" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
     # ── Preview ──
     echo ""
