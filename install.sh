@@ -1,17 +1,16 @@
 #!/usr/bin/env bash
-# install.sh - Bootstrap the Agent Deck onto your machine
+# install.sh - Set up awesome-claude-code resources
 #
-# This is the one-liner entry point. It installs the Agent Deck, which
-# is the actual tool for managing Claude Code resources across projects.
+# Two modes:
+#   --lite    Just install global ~/.claude/ config (land, preferences, safety rules).
+#             No deck, no tmux, no Agent Teams. Works with plain `claude` anywhere.
+#
+#   (default) Full install: global config + deck/tmux orchestrator + Agent Teams.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/stuagano/awesome-claude-code/main/install.sh | bash
-#   bash install.sh
-#
-# After install, use:
-#   agent-deck setup         Guided setup for your project
-#   agent-deck open          Open a session
-#   agent-deck spawn         Add another agent window
+#   curl -fsSL https://raw.githubusercontent.com/stuagano/awesome-claude-code/main/install.sh | bash -s -- --lite
+#   bash install.sh --lite
 
 set -euo pipefail
 
@@ -52,22 +51,11 @@ check_dependencies() {
     fi
 }
 
-main() {
-    local cache_dir="$DECK_HOME/cache/awesome-claude-code"
+# ── Fetch/update the resource cache ──────────────────────────────────
+fetch_cache() {
+    local cache_dir="$1"
 
-    # Cleanup on failure
-    trap 'if [ $? -ne 0 ]; then
-        [ -d "$cache_dir" ] && [ ! -d "$cache_dir/resources" ] && rm -rf "$cache_dir"
-    fi' EXIT
-
-    echo ""
-    echo -e "${BOLD}Awesome Claude Code — Agent Deck Installer${RESET}"
-    echo ""
-
-    check_dependencies
-
-    # ── Clone or update the resource cache ──
-    mkdir -p "$DECK_HOME/sessions" "$DECK_HOME/cache"
+    mkdir -p "$(dirname "$cache_dir")"
 
     if [ -d "$cache_dir/resources" ]; then
         info "Updating resource cache..."
@@ -89,9 +77,64 @@ main() {
     fi
     date +%s > "$cache_dir/.fetch_time"
     ok "Resources cached."
+}
 
-    # ── Install agent-deck.sh ──
+# ── Install global ~/.claude/ config ─────────────────────────────────
+install_global_config() {
+    local cache_dir="$1"
+    local claude_dir="$HOME/.claude"
+    local cache_ccs="$cache_dir/claude-config-share"
 
+    mkdir -p "$claude_dir"
+
+    if [ ! -d "$cache_ccs" ]; then
+        warn "claude-config-share not found in cache. Skipping global config."
+        return 0
+    fi
+
+    # Global slash commands (e.g., /land — available in every session)
+    mkdir -p "$claude_dir/commands"
+    if [ -f "$cache_ccs/commands/land.md" ]; then
+        cp "$cache_ccs/commands/land.md" "$claude_dir/commands/land.md"
+        ok "Global command: /land"
+    fi
+
+    # Preference modes (deep-work, exploratory, writing)
+    mkdir -p "$claude_dir/preferences"
+    local pref_count=0
+    for pref in "$cache_ccs/preferences/"*.md; do
+        [ -f "$pref" ] || continue
+        cp "$pref" "$claude_dir/preferences/$(basename "$pref")"
+        pref_count=$((pref_count + 1))
+    done
+    [ "$pref_count" -gt 0 ] && ok "Preference modes: $pref_count installed"
+
+    # Hot index directory for /land
+    mkdir -p "$claude_dir/projects.d"
+
+    # Global CLAUDE.md (safety rules, preference mode refs, time awareness)
+    local global_claude="$claude_dir/CLAUDE.md"
+    local marker="# --- awesome-claude-code: global-config ---"
+    if [ ! -f "$global_claude" ] || ! grep -qF "$marker" "$global_claude" 2>/dev/null; then
+        {
+            [ -f "$global_claude" ] && echo ""
+            echo "$marker"
+            echo ""
+            cat "$cache_ccs/CLAUDE.md"
+        } >> "$global_claude"
+        ok "Global CLAUDE.md: safety rules, preference modes, time awareness"
+    else
+        ok "Global CLAUDE.md: already configured"
+    fi
+}
+
+# ── Install deck/tmux orchestrator + Agent Teams ────────────────────
+install_deck() {
+    local cache_dir="$1"
+
+    mkdir -p "$DECK_HOME/sessions" "$DECK_HOME/cache"
+
+    # Install agent-deck.sh
     if [ -f "$cache_dir/agent-deck.sh" ]; then
         cp "$cache_dir/agent-deck.sh" "$DECK_HOME/agent-deck.sh"
         chmod +x "$DECK_HOME/agent-deck.sh"
@@ -101,16 +144,12 @@ main() {
         exit 1
     fi
 
-    # ── Enable Agent Teams ──
-
-    local claude_settings_dir="$HOME/.claude"
-    local claude_settings="$claude_settings_dir/settings.json"
-    mkdir -p "$claude_settings_dir"
+    # Enable Agent Teams
+    local claude_settings="$HOME/.claude/settings.json"
+    mkdir -p "$HOME/.claude"
 
     if [ -f "$claude_settings" ]; then
-        # Check if Agent Teams is already enabled
         if ! grep -q 'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS' "$claude_settings" 2>/dev/null; then
-            # Add env block if it exists, or create it
             if grep -q '"env"' "$claude_settings" 2>/dev/null; then
                 warn "Agent Teams not enabled in settings. Add manually:"
                 echo -e "  ${DIM}\"CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS\": \"1\"${RESET}"
@@ -124,7 +163,6 @@ main() {
             ok "Agent Teams: already enabled"
         fi
     else
-        # Create settings with Agent Teams enabled
         cat > "$claude_settings" << 'SETTINGS_EOF'
 {
   "env": {
@@ -135,53 +173,10 @@ SETTINGS_EOF
         ok "Agent Teams: enabled in $claude_settings"
     fi
 
-    # ── Install global Claude config (land, preferences, CLAUDE.md) ──
-
-    local cache_ccs="$cache_dir/claude-config-share"
-
-    if [ -d "$cache_ccs" ]; then
-        # Global slash commands (e.g., /land — available in every session)
-        mkdir -p "$claude_settings_dir/commands"
-        if [ -f "$cache_ccs/commands/land.md" ]; then
-            cp "$cache_ccs/commands/land.md" "$claude_settings_dir/commands/land.md"
-            ok "Global command: /land"
-        fi
-
-        # Preference modes (deep-work, exploratory, writing)
-        mkdir -p "$claude_settings_dir/preferences"
-        local pref_count=0
-        for pref in "$cache_ccs/preferences/"*.md; do
-            [ -f "$pref" ] || continue
-            cp "$pref" "$claude_settings_dir/preferences/$(basename "$pref")"
-            pref_count=$((pref_count + 1))
-        done
-        [ "$pref_count" -gt 0 ] && ok "Preference modes: $pref_count installed"
-
-        # Hot index directory for /land
-        mkdir -p "$claude_settings_dir/projects.d"
-
-        # Global CLAUDE.md (safety rules, preference mode refs, time awareness)
-        local global_claude="$claude_settings_dir/CLAUDE.md"
-        local marker="# --- awesome-claude-code: global-config ---"
-        if [ ! -f "$global_claude" ] || ! grep -qF "$marker" "$global_claude" 2>/dev/null; then
-            {
-                [ -f "$global_claude" ] && echo ""
-                echo "$marker"
-                echo ""
-                cat "$cache_ccs/CLAUDE.md"
-            } >> "$global_claude"
-            ok "Global CLAUDE.md: safety rules, preference modes, time awareness"
-        else
-            ok "Global CLAUDE.md: already configured"
-        fi
-    fi
-
-    # ── Install `deck` command ──
-
+    # Install `deck` command
     local bin_dir="$HOME/.local/bin"
     mkdir -p "$bin_dir"
 
-    # Create `deck` wrapper that detaches if inside tmux, launches dashboard otherwise
     cat > "$bin_dir/deck" << 'DECK_EOF'
 #!/usr/bin/env bash
 if [ -n "${TMUX:-}" ]; then
@@ -193,7 +188,6 @@ DECK_EOF
     chmod +x "$bin_dir/deck"
     ok "Installed: ~/.local/bin/deck"
 
-    # Also install as agent-deck for backwards compat
     cat > "$bin_dir/agent-deck" << 'AD_EOF'
 #!/usr/bin/env bash
 exec bash ~/.agent-deck/agent-deck.sh "$@"
@@ -207,17 +201,87 @@ AD_EOF
         echo -e "  ${CYAN}export PATH=\"\$HOME/.local/bin:\$PATH\"${RESET}"
         echo ""
     fi
+}
+
+# ══════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════
+
+main() {
+    local mode="full"
+    for arg in "$@"; do
+        case "$arg" in
+            --lite) mode="lite" ;;
+            --help|-h)
+                echo "Usage: install.sh [--lite]"
+                echo ""
+                echo "  --lite    Global ~/.claude/ config only (land, preferences, safety rules)"
+                echo "            No deck, no tmux, no Agent Teams. Works with plain 'claude'."
+                echo ""
+                echo "  (default) Full install: global config + deck orchestrator + Agent Teams"
+                exit 0
+                ;;
+        esac
+    done
+
+    local cache_dir="$DECK_HOME/cache/awesome-claude-code"
+
+    # Cleanup on failure
+    trap 'if [ $? -ne 0 ]; then
+        [ -d "$cache_dir" ] && [ ! -d "$cache_dir/resources" ] && rm -rf "$cache_dir"
+    fi' EXIT
 
     echo ""
-    echo -e "${BOLD}${GREEN}Agent Deck installed.${RESET}"
+    if [ "$mode" = "lite" ]; then
+        echo -e "${BOLD}Awesome Claude Code — Lite Install${RESET}"
+        echo -e "${DIM}Global config only (no deck/tmux)${RESET}"
+    else
+        echo -e "${BOLD}Awesome Claude Code — Full Install${RESET}"
+    fi
     echo ""
-    echo -e "${DIM}────────────────────────────────────────${RESET}"
+
+    check_dependencies
+
+    # ── Fetch resources ──
+    mkdir -p "$DECK_HOME/cache"
+    fetch_cache "$cache_dir"
+
+    # ── Always install global config ──
+    install_global_config "$cache_dir"
+
+    # ── Full mode: also install deck + Agent Teams ──
+    if [ "$mode" = "full" ]; then
+        install_deck "$cache_dir"
+    fi
+
+    # ── Done ──
     echo ""
-    echo "Usage:"
-    echo -e "  ${BOLD}deck${RESET}                          Dashboard (home base)"
-    echo -e "  ${BOLD}deck setup ~/myproject${RESET}        Set up a project"
-    echo -e "  ${BOLD}deck open mirion${RESET}              Enter a project session"
-    echo -e "  ${BOLD}deck${RESET}                          ${DIM}(from inside a project) back to dashboard${RESET}"
+    if [ "$mode" = "lite" ]; then
+        echo -e "${BOLD}${GREEN}Global config installed.${RESET}"
+        echo ""
+        echo -e "${DIM}────────────────────────────────────────${RESET}"
+        echo ""
+        echo "What you got:"
+        echo -e "  ${BOLD}/land${RESET}                          Save conversations as versioned projects"
+        echo -e "  ${BOLD}mode: deep-work${RESET}                Maximum focus, minimal chatter"
+        echo -e "  ${BOLD}mode: exploratory${RESET}              Brainstorm, surface options"
+        echo -e "  ${BOLD}mode: writing${RESET}                  Prose & documentation tone"
+        echo -e "  ${BOLD}~/.claude/CLAUDE.md${RESET}            Safety rules, time awareness"
+        echo ""
+        echo "Just run ${BOLD}claude${RESET} in any project. Everything works globally."
+        echo ""
+        echo -e "${DIM}Want deck/tmux later? Re-run without --lite.${RESET}"
+    else
+        echo -e "${BOLD}${GREEN}Agent Deck installed.${RESET}"
+        echo ""
+        echo -e "${DIM}────────────────────────────────────────${RESET}"
+        echo ""
+        echo "Usage:"
+        echo -e "  ${BOLD}deck${RESET}                          Dashboard (home base)"
+        echo -e "  ${BOLD}deck setup ~/myproject${RESET}        Set up a project"
+        echo -e "  ${BOLD}deck open mirion${RESET}              Enter a project session"
+        echo -e "  ${BOLD}deck${RESET}                          ${DIM}(from inside a project) back to dashboard${RESET}"
+    fi
     echo ""
 }
 

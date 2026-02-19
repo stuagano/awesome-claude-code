@@ -22,6 +22,19 @@ See [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md) for the full architecture
 
 ## Quick Start
 
+### Lite Install (no deck/tmux — just global config)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/stuagano/awesome-claude-code/main/install.sh | bash -s -- --lite
+```
+
+Installs to `~/.claude/` and works with plain `claude` in any project:
+- `/land` — save conversations as versioned projects
+- `mode: deep-work` / `exploratory` / `writing` — preference modes
+- Safety rules, time awareness, file protection in global CLAUDE.md
+
+### Full Install (deck + tmux orchestrator)
+
 ```bash
 # Install (one-time)
 curl -fsSL https://raw.githubusercontent.com/stuagano/awesome-claude-code/main/install.sh | bash
