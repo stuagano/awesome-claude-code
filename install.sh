@@ -135,6 +135,47 @@ SETTINGS_EOF
         ok "Agent Teams: enabled in $claude_settings"
     fi
 
+    # ── Install global Claude config (land, preferences, CLAUDE.md) ──
+
+    local cache_ccs="$cache_dir/claude-config-share"
+
+    if [ -d "$cache_ccs" ]; then
+        # Global slash commands (e.g., /land — available in every session)
+        mkdir -p "$claude_settings_dir/commands"
+        if [ -f "$cache_ccs/commands/land.md" ]; then
+            cp "$cache_ccs/commands/land.md" "$claude_settings_dir/commands/land.md"
+            ok "Global command: /land"
+        fi
+
+        # Preference modes (deep-work, exploratory, writing)
+        mkdir -p "$claude_settings_dir/preferences"
+        local pref_count=0
+        for pref in "$cache_ccs/preferences/"*.md; do
+            [ -f "$pref" ] || continue
+            cp "$pref" "$claude_settings_dir/preferences/$(basename "$pref")"
+            pref_count=$((pref_count + 1))
+        done
+        [ "$pref_count" -gt 0 ] && ok "Preference modes: $pref_count installed"
+
+        # Hot index directory for /land
+        mkdir -p "$claude_settings_dir/projects.d"
+
+        # Global CLAUDE.md (safety rules, preference mode refs, time awareness)
+        local global_claude="$claude_settings_dir/CLAUDE.md"
+        local marker="# --- awesome-claude-code: global-config ---"
+        if [ ! -f "$global_claude" ] || ! grep -qF "$marker" "$global_claude" 2>/dev/null; then
+            {
+                [ -f "$global_claude" ] && echo ""
+                echo "$marker"
+                echo ""
+                cat "$cache_ccs/CLAUDE.md"
+            } >> "$global_claude"
+            ok "Global CLAUDE.md: safety rules, preference modes, time awareness"
+        else
+            ok "Global CLAUDE.md: already configured"
+        fi
+    fi
+
     # ── Install `deck` command ──
 
     local bin_dir="$HOME/.local/bin"

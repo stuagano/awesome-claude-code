@@ -347,8 +347,8 @@ cmd_setup() {
     done
 
     # ── Build resource list ──
-    local base_cmds="commit pr-review optimize land"
-    local base_templates="Claude-Config-Share"
+    local base_cmds="commit pr-review optimize"
+    local base_templates=""
     local domain_cmds
     domain_cmds=$(commands_for_domain "$domain")
     local needs_cmds
