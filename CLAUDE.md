@@ -2,20 +2,25 @@
 
 ## How It Works
 
-Each project gets a **persistent team lead** — a Claude Code session with Agent Teams enabled that manages work, spawns teammates, and tracks progress. You switch between projects with `agent-deck`.
+The **Agent Deck** is your home base for managing multiple Claude Code projects. Each project gets tailored slash commands and CLAUDE.md templates installed during setup. You switch between projects from the dashboard.
+
+**Default workflow**: open one Claude session at a time. Use subagents (Task tool) inside the session for parallel work — no extra processes, no wasted tokens.
+
+**Power users**: add `--tmux` for persistent sessions that survive disconnects and support multiple agent windows.
 
 ```
 You
-├── agent-deck open deck-mirion      → Team Lead for Mirion
-│   ├── teammate → "fix auth bug"        (own tmux pane)
-│   ├── teammate → "run tests"           (own tmux pane)
-│   └── tracks tasks, reports on check-in
+├── deck                             → Dashboard (home base)
 │
-├── agent-deck open deck-guidepoint  → Team Lead for Guidepoint
-│   ├── teammate → "build API endpoint"  (own tmux pane)
-│   └── teammate → "review PR"           (own tmux pane)
+├── deck open mirion                 → Claude session in ~/mirion
+│   ├── subagent → "fix auth bug"        (Task tool, inline)
+│   ├── subagent → "run tests"           (Task tool, inline)
+│   └── subagent → "search codebase"     (Task tool, inline)
 │
-└── agent-deck list                  → status + task progress
+├── deck open guidepoint             → Claude session in ~/guidepoint
+│   └── subagents as needed
+│
+└── deck list                        → project status
 ```
 
 See [docs/SYSTEM_OVERVIEW.md](docs/SYSTEM_OVERVIEW.md) for the full architecture.
@@ -45,9 +50,10 @@ deck setup ~/guidepoint       # same for another project
 
 # Work
 deck                          # dashboard (home base)
-deck open mirion              # enter a project session
-deck                          # (from inside a project) back to dashboard
-deck open guidepoint          # enter another project
+deck open mirion              # launch Claude in mirion
+# ... do work, use subagents for parallelism ...
+# exit Claude when done
+deck open guidepoint          # switch to another project
 ```
 
 ## Available Domains
@@ -87,56 +93,40 @@ deck open guidepoint          # enter another project
 - Stage specific files (avoid `git add -A`)
 - One logical change per commit
 
-## The Orchestrator (Team Lead)
+## Working with Subagents
 
-When you `agent-deck open` a session, Claude Code starts as the **team lead** for that project. Agent Teams is enabled automatically.
+When `deck open` launches Claude, use **subagents** (Task tool) for parallel work within the session. This is the recommended approach — it keeps everything in one context and avoids burning tokens on separate processes.
 
-### How to Orchestrate
+### When to Use Subagents
 
-When given a complex task, the team lead should:
+| Subagent type | For |
+|---------------|-----|
+| **Explore** | Codebase search, file discovery, architecture understanding |
+| **Bash** | Running commands, git operations, builds, tests |
+| **Plan** | Designing implementation strategy before coding |
+| **general-purpose** | Multi-step research, complex searches |
 
-1. **Plan the work** — Break it into a task DAG with dependencies
-2. **Spawn a team** — Use `spawnTeam` to create the team
-3. **Create tasks** — Use `TaskCreate` for each work item, with `blockedBy` for dependencies
-4. **Spawn teammates** — Each teammate is a separate Claude Code process in its own tmux pane
-5. **Coordinate** — Use direct messages (`write`) or `broadcast` to communicate
-6. **Track progress** — Monitor the shared task list, unblock downstream work
-7. **Report** — When the user checks in, summarize status
+### How to Orchestrate with Subagents
 
-### When to Use Teammates vs. Subagents
+When given a complex task:
 
-| Use | For |
-|-----|-----|
-| **Agent Teams teammates** | Real implementation work — features, bug fixes, tests, deployments. Each gets its own context, tmux pane, and codebase access. |
-| **Subagents (Task tool)** | Quick lookups — search for a file, read docs, analyze a diff. Results come back inline, no tmux pane needed. |
+1. **Plan the work** — Break it into steps, use TodoWrite to track
+2. **Spawn subagents in parallel** — Multiple Task calls in one message
+3. **Implement** — Use results from subagents to make changes
+4. **Test** — Spawn a Bash subagent to run tests
+5. **Report** — Summarize what was done
 
-### Delegate Mode
+### tmux Mode (Power Users)
 
-Press `Shift+Tab` to enter delegate mode — the team lead coordinates only, no direct code changes. Use this for pure project management: spawn teammates, message them, manage tasks, approve plans.
+For long-running work that needs to survive disconnects:
 
-### Check-In Protocol
+```bash
+deck open mirion --tmux       # persistent tmux session
+deck spawn mirion             # add another agent window
+deck kill mirion              # stop the session
+```
 
-When the user returns to a session after being away, immediately:
-
-1. Read the task list (`~/.claude/tasks/<team>/`) for current status
-2. Check the mailbox for any messages from teammates
-3. Present a status summary:
-   ```
-   Status for <team>:
-     ✓ Task 1 (description) — completed by worker-1
-     ✓ Task 2 (description) — completed by worker-2
-     → Task 3 (description) — in progress (worker-1)
-     ○ Task 4 (description) — pending (blocked by 3)
-     ✗ Task 5 (description) — needs attention: [reason]
-   ```
-4. Flag anything that needs user input or decision
-5. Suggest next steps
-
-### Quality Gates
-
-Use hooks to enforce standards:
-- **`TaskCompleted`** — exit code 2 blocks completion (e.g., "run tests before marking done")
-- **`TeammateIdle`** — exit code 2 sends feedback to keep teammate working
+When using tmux with Agent Teams enabled, Claude can spawn teammates — separate Claude processes in their own tmux panes. This is powerful but costs more tokens. Use it when you need truly independent, long-running agents.
 
 ## Commands
 
