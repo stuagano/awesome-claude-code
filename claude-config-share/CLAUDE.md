@@ -127,6 +127,18 @@ When the user makes an architectural or design decision during conversation, not
 - One-line entries, not paragraphs
 - Skip the update if the session was trivial (just a question, no real work)
 
+## Project Commands
+
+Three commands work together for project management:
+
+| Command | Purpose |
+|---------|---------|
+| `/land <name>` | Graduate a conversation into a versioned project with full structure |
+| `/save [name]` | Quick-save current context to an existing project's SUMMARY.md |
+| `/project-ideas [action]` | Capture, develop, and manage a backlog of project ideas |
+
+**Workflow:** Ideas start in `/project-ideas` -> develop when ready -> `/project-ideas land N` graduates to a full `/land` project -> `/save` keeps it current between sessions.
+
 ## User Context
 
 _Fill in your own context here so Claude knows how to calibrate:_
