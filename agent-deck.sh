@@ -348,14 +348,17 @@ cmd_setup() {
 
     # ── Build resource list ──
     local base_cmds="commit pr-review optimize"
+    local base_templates=""
     local domain_cmds
     domain_cmds=$(commands_for_domain "$domain")
     local needs_cmds
     needs_cmds=$(commands_for_needs "$needs")
     local all_cmds
     all_cmds=$(echo "$base_cmds $domain_cmds $needs_cmds" | tr ' ' '\n' | sort -u | tr '\n' ' ')
+    local domain_templates
+    domain_templates=$(templates_for_domain "$domain")
     local templates
-    templates=$(templates_for_domain "$domain")
+    templates=$(echo "$base_templates $domain_templates" | tr ' ' '\n' | sort -u | tr '\n' ' ')
 
     # ── Preview ──
     echo ""
