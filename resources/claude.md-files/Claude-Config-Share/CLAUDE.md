@@ -88,3 +88,32 @@ Ready to pick up on any of these, or something new?
 - Numbering is continuous across all actionable sections
 - Open Questions use `Q1.`, `Q2.` (not checkboxes — they're not tasks)
 - Ad-hoc sections (Errors, Blocked, Rabbit Holes) can be created on the fly
+
+## Project Context Detection
+
+On session start, automatically detect if the user is in a tracked project:
+
+1. **Check CWD for SUMMARY.md** — walk up from CWD to parent dirs (max 3 levels)
+2. **Check `~/.claude/projects.d/`** — scan entries, match against CWD path
+3. **If found:** Read SUMMARY.md and present status using the checklist format above
+4. **If not found:** No action needed. The user can `/land` later if they want to track it.
+
+## Auto-Accumulate
+
+When working in a tracked project (one with SUMMARY.md), keep the project context current:
+
+### On commit
+After a successful git commit in a tracked project, update SUMMARY.md:
+- Append the commit to `## Version Log` (or create if missing)
+- Update `## Current State` if the work changed project status
+- Add any new decisions to `## Key Decisions` (append-only, never remove old ones)
+- Update `## Next Steps` if completed items or new items emerged
+
+### On significant decisions
+When the user makes an architectural or design decision during conversation, note it in `## Key Decisions` immediately — don't wait for session end.
+
+### Keep it lightweight
+- Don't ask permission for routine SUMMARY.md updates — just do it
+- Don't rewrite sections — append to existing content
+- One-line entries, not paragraphs
+- Skip the update if the session was trivial (just a question, no real work)

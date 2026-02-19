@@ -92,12 +92,15 @@ install_global_config() {
         return 0
     fi
 
-    # Global slash commands (e.g., /land — available in every session)
+    # Global slash commands (e.g., /land, /save — available in every session)
     mkdir -p "$claude_dir/commands"
-    if [ -f "$cache_ccs/commands/land.md" ]; then
-        cp "$cache_ccs/commands/land.md" "$claude_dir/commands/land.md"
-        ok "Global command: /land"
-    fi
+    local cmd_count=0
+    for cmd_file in "$cache_ccs/commands/"*.md; do
+        [ -f "$cmd_file" ] || continue
+        cp "$cmd_file" "$claude_dir/commands/$(basename "$cmd_file")"
+        cmd_count=$((cmd_count + 1))
+    done
+    [ "$cmd_count" -gt 0 ] && ok "Global commands: $cmd_count installed (/land, /save)"
 
     # Preference modes (deep-work, exploratory, writing)
     mkdir -p "$claude_dir/preferences"
@@ -263,10 +266,11 @@ main() {
         echo ""
         echo "What you got:"
         echo -e "  ${BOLD}/land${RESET}                          Save conversations as versioned projects"
+        echo -e "  ${BOLD}/save${RESET}                          Quick-update current project's SUMMARY.md"
         echo -e "  ${BOLD}mode: deep-work${RESET}                Maximum focus, minimal chatter"
         echo -e "  ${BOLD}mode: exploratory${RESET}              Brainstorm, surface options"
         echo -e "  ${BOLD}mode: writing${RESET}                  Prose & documentation tone"
-        echo -e "  ${BOLD}~/.claude/CLAUDE.md${RESET}            Safety rules, time awareness"
+        echo -e "  ${BOLD}~/.claude/CLAUDE.md${RESET}            Safety rules, auto-detect projects, auto-accumulate"
         echo ""
         echo "Just run ${BOLD}claude${RESET} in any project. Everything works globally."
         echo ""
