@@ -83,12 +83,12 @@ fetch_cache() {
 install_global_config() {
     local cache_dir="$1"
     local claude_dir="$HOME/.claude"
-    local cache_ccs="$cache_dir/claude-config-share"
+    local cache_ccs="$cache_dir/.claude"
 
     mkdir -p "$claude_dir"
 
     if [ ! -d "$cache_ccs" ]; then
-        warn "claude-config-share not found in cache. Skipping global config."
+        warn ".claude not found in cache. Skipping global config."
         return 0
     fi
 

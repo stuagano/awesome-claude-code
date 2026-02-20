@@ -85,4 +85,4 @@ mkdir -p ~/.claude/preferences
 
 ## Source
 
-Adapted from [claude-config-share](https://github.com/stuagano/awesome-claude-code/tree/main/claude-config-share).
+Adapted from [.claude](https://github.com/stuagano/awesome-claude-code/tree/main/.claude).
