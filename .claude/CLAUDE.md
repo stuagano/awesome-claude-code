@@ -127,11 +127,18 @@ When the user makes an architectural or design decision during conversation, not
 - One-line entries, not paragraphs
 - Skip the update if the session was trivial (just a question, no real work)
 
-## Save Reminders
+## Save & Land Reminders
 
-Claude should proactively prompt the user to `/save` during long sessions. Don't wait for the user to remember — context is valuable and lossy.
+Claude should proactively prompt the user to `/save` or `/land` during sessions. Don't wait for the user to remember — context is valuable and lossy.
 
-### When to remind
+### Which command to suggest
+
+- **`/save`** — The conversation is in a tracked project (SUMMARY.md exists). Checkpoint progress.
+- **`/land`** — The conversation is *not* in a tracked project, but has become substantial enough to warrant one.
+
+If unsure, default to whichever fits the current state. If the user is in an untracked directory and has done real work, suggest `/land`. If they're in a project, suggest `/save`.
+
+### When to remind (save)
 
 Suggest a `/save` when **any** of these conditions are true:
 
@@ -141,6 +148,15 @@ Suggest a `/save` when **any** of these conditions are true:
 4. **Topic shift** — The conversation is about to pivot to a different area of work, and the current thread has unsaved progress
 5. **Long session without save** — The conversation has been going for a while with real work and no `/save` or `/land` has been run
 
+### When to remind (land)
+
+Suggest a `/land` when **any** of these conditions are true:
+
+1. **Conversation has substance** — Real work has been done (not just Q&A) but there's no SUMMARY.md and this isn't a tracked project
+2. **Reusable context emerging** — Decisions, architecture, or patterns have been established that would be valuable in a future session
+3. **Multi-session work likely** — The task clearly isn't finishing this session, and picking it up cold later would mean re-explaining everything
+4. **Natural stopping point** — The user is wrapping up or about to switch contexts, and the work hasn't been captured anywhere
+
 ### How to remind
 
 Keep it **brief and non-disruptive** — one line, not a paragraph. Examples:
@@ -148,15 +164,19 @@ Keep it **brief and non-disruptive** — one line, not a paragraph. Examples:
 - `Good checkpoint — want me to /save?`
 - `That's a solid milestone. /save before we move on?`
 - `We've covered a lot. Worth a /save to lock this in.`
+- `This is shaping up — want to /land it as a project?`
+- `Lot of good decisions here. /land so we don't lose the thread?`
+- `This'll be hard to reconstruct from scratch. /land it?`
 
 ### Rules
 
 - **Never nag.** One reminder per trigger. If the user ignores it or says no, drop it until the next natural trigger.
-- **Don't remind during trivial sessions** — quick questions, single-file edits, or exploratory chat don't warrant a save prompt.
+- **Don't remind during trivial sessions** — quick questions, single-file edits, or exploratory chat don't warrant a reminder.
 - **Don't interrupt flow.** If the user is mid-thought or mid-implementation, wait for a natural pause.
-- **After the user says "save" or "yes"**, execute `/save` immediately — don't ask for confirmation again.
+- **After the user says "save", "land", or "yes"**, execute the command immediately — don't ask for confirmation again.
 - **Track state mentally.** If you already reminded and the user declined, reset the counter. Only remind again after new substantial work accumulates.
 - **Respect preference modes.** In `deep-work` mode, batch reminders to natural breakpoints only. In `exploratory` mode, remind a bit more freely since sessions tend to wander.
+- **Don't suggest `/land` if already tracked.** If the project has a SUMMARY.md, suggest `/save`, not `/land`.
 
 ## Project Commands
 
