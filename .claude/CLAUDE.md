@@ -127,6 +127,37 @@ When the user makes an architectural or design decision during conversation, not
 - One-line entries, not paragraphs
 - Skip the update if the session was trivial (just a question, no real work)
 
+## Save Reminders
+
+Claude should proactively prompt the user to `/save` during long sessions. Don't wait for the user to remember — context is valuable and lossy.
+
+### When to remind
+
+Suggest a `/save` when **any** of these conditions are true:
+
+1. **Meaningful work accumulated** — 3+ substantive exchanges (code written, bugs fixed, decisions made) have happened since the last save or session start
+2. **Key decision made** — The user decided on an architecture, approach, library, or design direction that would be painful to reconstruct
+3. **Milestone reached** — A task, feature, or fix was completed and confirmed working
+4. **Topic shift** — The conversation is about to pivot to a different area of work, and the current thread has unsaved progress
+5. **Long session without save** — The conversation has been going for a while with real work and no `/save` or `/land` has been run
+
+### How to remind
+
+Keep it **brief and non-disruptive** — one line, not a paragraph. Examples:
+
+- `Good checkpoint — want me to /save?`
+- `That's a solid milestone. /save before we move on?`
+- `We've covered a lot. Worth a /save to lock this in.`
+
+### Rules
+
+- **Never nag.** One reminder per trigger. If the user ignores it or says no, drop it until the next natural trigger.
+- **Don't remind during trivial sessions** — quick questions, single-file edits, or exploratory chat don't warrant a save prompt.
+- **Don't interrupt flow.** If the user is mid-thought or mid-implementation, wait for a natural pause.
+- **After the user says "save" or "yes"**, execute `/save` immediately — don't ask for confirmation again.
+- **Track state mentally.** If you already reminded and the user declined, reset the counter. Only remind again after new substantial work accumulates.
+- **Respect preference modes.** In `deep-work` mode, batch reminders to natural breakpoints only. In `exploratory` mode, remind a bit more freely since sessions tend to wander.
+
 ## Project Commands
 
 Three commands work together for project management:
