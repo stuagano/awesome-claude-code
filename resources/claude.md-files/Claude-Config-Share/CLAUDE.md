@@ -1,6 +1,6 @@
 # Claude Config — Personal Workflow Framework
 
-A framework for reducing cognitive load and maintaining organized, persistent project context. Adapted from [claude-config-share](https://github.com/stuagano/awesome-claude-code/tree/main/claude-config-share).
+A framework for reducing cognitive load and maintaining organized, persistent project context. Adapted from [.claude](https://github.com/stuagano/awesome-claude-code/tree/main/.claude).
 
 ## Core Purpose
 
