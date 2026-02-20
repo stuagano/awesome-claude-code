@@ -28,12 +28,10 @@ coverage.xml
 
 !.claude/
 .claude/*
+!.claude/CLAUDE.md
+!.claude/README.md
 !.claude/commands/
-.claude/commands/*
-!.claude/commands/evaluate-repository.md
-!.claude/commands/start.md
-!.claude/commands/pick.md
-!.claude/commands/list-resources.md
-!.claude/commands/commit.md
-!.claude/commands/review.md
-!.claude/commands/design-review.md
+!.claude/preferences/
+!.claude/templates/
+!.claude/guides/
+!.claude/github-actions/
