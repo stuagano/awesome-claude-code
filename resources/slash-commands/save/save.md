@@ -61,3 +61,4 @@ Saved <project-name> (v<N+1>). <one-line summary>
 - Don't create transcripts (that's `/land`'s job).
 - Don't run fuzzy dedup (project already exists).
 - Touch the hot index file if it exists (`~/.claude/projects.d/`): update `last_touched` and `expires`.
+- After saving, reset any internal save-reminder state — the clock starts fresh from this point.
