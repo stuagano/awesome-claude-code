@@ -148,6 +148,69 @@ Agents within a session spin up and down naturally:
 
 34 project-specific templates covering ML, Databricks, backend, frontend, DevOps, and more. The guided setup recommends the right ones for your stack.
 
+## Modifying Existing Instances
+
+After initial setup, there are several ways to modify what resources and configuration a Claude Code instance uses.
+
+### Re-run Setup
+
+```bash
+deck setup ~/my-project
+```
+
+This re-detects your stack and lets you change the domain and needs selections. Resource installation is idempotent — template markers in `CLAUDE.md` prevent duplicate sections. This is the simplest way to add new resources or switch domains.
+
+### Pick Individual Resources
+
+From inside a running Claude session, use the `/pick` command for fine-grained control:
+
+```
+/pick                                  # Browse all categories
+/pick slash-commands                   # List available commands
+/pick slash-commands/optimize          # Install a specific command
+/pick claude.md-files/DSPy             # Add a specific template to CLAUDE.md
+```
+
+### Edit Files Directly
+
+Every instance is just files on disk — no hidden state.
+
+**Add a command:**
+```bash
+cp ~/.agent-deck/cache/awesome-claude-code/resources/slash-commands/optimize/optimize.md \
+   ~/my-project/.claude/commands/
+```
+
+**Edit a template section:** Open `CLAUDE.md` and modify the content between `# --- awesome-claude-code: <name> ---` markers.
+
+**Change session metadata:** Edit `~/.agent-deck/sessions/deck-<name>.conf` directly to update the stored domain, needs, or resource lists.
+
+### Modify Global Behavior
+
+```bash
+deck config show          # View current global settings
+deck config edit          # Open config in your editor
+deck config set KEY=val   # Set a specific value
+```
+
+Key settings in `~/.agent-deck/config.conf`:
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `CONF_AGENT_TEAMS` | `1` | Enable/disable Agent Teams |
+| `CONF_DEFAULT_DOMAIN` | `general` | Default domain for new project setups |
+| `CONF_AUTO_UPDATE` | `true` | Auto-refresh resource cache (daily) |
+| `CONF_EDITOR` | `vi` | Editor used by `deck config edit` |
+
+### Manage tmux Instances
+
+```bash
+deck open myproject --tmux    # Launch persistent tmux session
+deck spawn myproject          # Add another Claude agent window
+deck kill myproject           # Terminate the session
+deck list                     # See all projects and their status
+```
+
 ## Removing Resources
 
 ```bash
